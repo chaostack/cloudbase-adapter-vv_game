@@ -254,6 +254,7 @@ const adapter = {
 
 try{
   window['tcbAdapterVVGame'] = adapter;
+  window['adapter'] = adapter;
 }catch(e){}
 export {adapter};
 export default adapter;
