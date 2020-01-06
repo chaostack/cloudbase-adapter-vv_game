@@ -252,5 +252,8 @@ const adapter = {
   runtime: 'vv_game'
 };
 
+try{
+  window['tcbAdapterVVGame'] = adapter;
+}catch(e){}
 export {adapter};
 export default adapter;
