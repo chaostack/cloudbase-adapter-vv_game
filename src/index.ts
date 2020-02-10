@@ -7,7 +7,9 @@ import {
   StorageType,
   WebSocketContructor,
   WebSocketInterface,
-  formatUrl
+  formatUrl,
+  IRequestMethod,
+  IRequestConfig
 } from '@cloudbase/adapter-interface';
 
 declare const qg;
@@ -69,29 +71,50 @@ function isMatch(): boolean {
 }
 
 class VVRequest extends AbstractSDKRequest {
-  post(options: IRequestOptions) {
-    const {
-      url,
-      data,
-      headers
-    } = options;
+  // 默认不限超时
+  private readonly _timeout: number;
+  // 超时提示文案
+  private readonly _timeoutMsg: string;
+  // 超时受限请求类型，默认所有请求均受限
+  private readonly _restrictedMethods: IRequestMethod[];
+  constructor(config: IRequestConfig={}) {
+    super();
+    const { timeout, timeoutMsg, restrictedMethods } = config;
+    this._timeout = timeout || 0;
+    this._timeoutMsg = timeoutMsg || '请求超时';
+    // vivo小游戏upload方法无task，不能被中断
+    // @see https://minigame.vivo.com.cn/documents/#/api/network/upload-download?id=qguploadfileobject-object
+    this._restrictedMethods = restrictedMethods || ['post', 'download'];
+  }
+  public post(options: IRequestOptions) {
+    const self = this;
+    
     return new Promise((resolve, reject) => {
-      qg.request({
+      let timer = null;
+      const {
+        url,
+        data,
+        headers
+      } = options;
+      const task = qg.request({
         url: formatUrl('https:', url),
         data: JSON.stringify(data),
         method: 'POST',
         dataType: 'json',
         header: headers,
         success(res) {
+          self._clearTimeout(timer);
           resolve(res);
         },
         fail(err) {
+          self._clearTimeout(timer);
           reject(err);
         }
       });
+      timer = self._setTimeout('post',task);
     });
   }
-  upload(options: IUploadRequestOptions) {
+  public upload(options: IUploadRequestOptions) {
     return new Promise(resolve => {
       const {
         url,
@@ -133,16 +156,20 @@ class VVRequest extends AbstractSDKRequest {
       });
     });
   }
-  download(options: IRequestOptions) {
-    const {
-      url,
-      headers
-    } = options;
+  public download(options: IRequestOptions) {
+    const self = this;
+    
     return new Promise((resolve, reject) => {
-      qg.download({
+      let timer = null;
+      const {
+        url,
+        headers
+      } = options;
+      const task = qg.download({
         url: formatUrl('https:', url),
         header: headers,
         success(res) {
+          self._clearTimeout(timer);
           if (res.statusCode === 200 && res.tempFilePath) {
             // 由于涉及权限问题，只返回临时链接不保存到设备
             resolve({
@@ -154,10 +181,30 @@ class VVRequest extends AbstractSDKRequest {
           }
         },
         fail(err) {
+          self._clearTimeout(timer);
           reject(err);
         }
       });
+      timer = self._setTimeout('download',task);
     });
+  }
+  private _clearTimeout(timer:number|null){
+    if(timer){
+      clearTimeout(timer);
+      timer = null;
+    }
+  }
+  private _setTimeout(method:IRequestMethod,task):number|null{
+    if(!this._timeout || this._restrictedMethods.indexOf(method) === -1){
+      return null;
+    }
+    const timer = setTimeout(() => {
+      console.warn(this._timeoutMsg);
+      try{
+        task.abort();
+      }catch(e){}
+    }, this._timeout);
+    return timer;
   }
 }
 

@@ -4,7 +4,6 @@ const webpack = require('webpack');
 module.exports = {
   mode: 'production',
   // mode: 'development',
-  // 解决async/await被babel转成generator后的兼容问题
   entry: [
     './src/index.ts'
   ],
@@ -14,7 +13,8 @@ module.exports = {
     filename: 'index.js',
     library: 'tcbAdapterVVGame',
     libraryTarget: 'umd',
-    umdNamedDefine: true
+    umdNamedDefine: true,
+    globalObject: 'typeof window !== "undefined"?window:this'
   },
   resolve: {
     extensions: ['.ts', '.js']
